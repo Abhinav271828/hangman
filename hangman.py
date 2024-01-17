@@ -52,7 +52,7 @@ def gen_data(filename):
                     #self.guesses.append(ord(c)-ord('a'))
     g.close()
 
-DEVICE = torch.device('mps:0')
+DEVICE = torch.device('cuda:0')
 class HangmanData(Dataset):
     def __init__(self):
         try:
@@ -102,7 +102,6 @@ class PositionalEncoding(nn.Module):
         x = x + self.pe[:x.size(0)]
         return self.dropout(x)
 
-
 class HangmanModel(nn.Module):
     def __init__(self):
         super().__init__()
@@ -134,6 +133,7 @@ class HangmanModel(nn.Module):
             guesses = guesses.to(DEVICE)
             s_mask = (inputs != 27)
             masks = torch.mul(s_mask.unsqueeze(2), s_mask.unsqueeze(1)).repeat(8, 1, 1)
+            masks = masks.logical_not()
             logits = self((inputs, masks))
             loss = loss_fn(logits, guesses)
             loss.backward()
@@ -143,6 +143,7 @@ class HangmanModel(nn.Module):
         return total_loss / len(dl)
     
     def train_loop(self, dl):
+        self.train()
         lr = 0.1
         optim = torch.optim.SGD(params=self.parameters(), lr=lr)
         loss_fn = nn.CrossEntropyLoss(ignore_index=27)
@@ -163,8 +164,14 @@ class HangmanModel(nn.Module):
 #ds = HangmanData()
 #torch.save(ds, 'dataset.pkl')
 
-ds = torch.load('dataset.pkl')
-dl = DataLoader(ds, batch_size=128, shuffle=True)
+ds = torch.load('dataset.pkl', map_location=DEVICE)
+# Take 10% of dataset for memory reasons
+perm = torch.randperm(len(ds))
+idx = perm[:len(ds)//10]
+ds.words = ds.words[idx]
+ds.guesses = ds.guesses[idx]
+dl = DataLoader(ds, batch_size=1024, shuffle=True)
 
 hm = HangmanModel()
+hm = hm.to(DEVICE)
 hm.train_loop(dl)
