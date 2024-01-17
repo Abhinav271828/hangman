@@ -125,7 +125,6 @@ class HangmanModel(nn.Module):
             guesses = guesses.to(DEVICE)
             s_mask = (inputs != 27)
             masks = torch.mul(s_mask.unsqueeze(2), s_mask.unsqueeze(1)).repeat(8, 1, 1)
-            masks = masks.logical_not()
             logits = self((inputs, masks))
             loss = loss_fn(logits, guesses)
             loss.backward()
@@ -156,7 +155,7 @@ class HangmanModel(nn.Module):
 ds = HangmanData()
 torch.save(ds, 'dataset.pkl')
 
-ds = torch.load('dataset.pkl', map_location=DEVICE)
+ds = torch.load('dataset10.pkl', map_location=DEVICE)
 # Take 10% of dataset for memory reasons
 perm = torch.randperm(len(ds))
 idx = perm[:len(ds)//10]
