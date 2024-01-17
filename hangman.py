@@ -17,18 +17,17 @@ def gen_data(filename):
         unique = list(set(word))
         # if <= 5 unique chars, then fewer blanks
         if len(unique) <= 5:
-            m = min(4, len(unique))
+            m = min(3, len(unique))
             sets = [s for i in range(1, m+1) for s in combinations(unique, i)]
 
         # if >= 10, then more
         elif len(unique) >= 10:
-            m = len(unique)-4
-            sets = sets = [s for i in range(m, len(unique)+1) for s in combinations(unique, i)]
+            sets = sets = [s for i in range(4, 7) for s in combinations(unique, i)]
         
         # otherwise, intermediate
         else: 
-            m = min(6, len(unique))
-            sets = sets = [s for i in range(4, m+1) for s in combinations(unique, i)]
+            m = min(5, len(unique))
+            sets = sets = [s for i in range(3, m+1) for s in combinations(unique, i)]
 
         # Control size
         if len(sets) > 500:
@@ -38,21 +37,16 @@ def gen_data(filename):
             w = list(word)
             for i in range(len(word)):
                 if word[i] in s: w[i] = '_'
-            #print(w)
             for c in s:
-                #print(c)
-                #print(word.count(c))
                 # Add the letter as many times as it occurs in the word,
                 # to introduce a bias towards more frequent letters.
                 for _ in range(word.count(c)):
                     g.write(word + ' ')
                     g.write(''.join(w) + ' ')
                     g.write(c + '\n')
-                    #self.words.append(w + [0]*(29 - len(w))) # 29 is max word length
-                    #self.guesses.append(ord(c)-ord('a'))
     g.close()
 
-DEVICE = torch.device('cuda:0')
+DEVICE = torch.device('cpu')
 class HangmanData(Dataset):
     def __init__(self):
         try:
@@ -111,9 +105,7 @@ class HangmanModel(nn.Module):
         self.encoder_layer = nn.TransformerEncoderLayer(d_model=512, nhead=8, dim_feedforward=512, batch_first=True)
         self.encoder = nn.TransformerEncoder(self.encoder_layer, 4)
 
-        self.head = nn.Sequential(nn.Linear(in_features=29*512, out_features=2048),
-                                  nn.Linear(in_features=2048, out_features=512),
-                                  nn.Linear(in_features=512, out_features=26))
+        self.head = nn.Linear(in_features=512, out_features=26)
 
     def forward(self, x):
         #x[0].to(DEVICE)
@@ -122,7 +114,7 @@ class HangmanModel(nn.Module):
         embeddings = self.embedder(inputs)
         positional_embeddings = self.pos_enc(embeddings)
         encodings = self.encoder(src=positional_embeddings, mask=masks)
-        logits = self.head(encodings.flatten(1, 2))
+        logits = self.head(torch.mean(encodings, dim=1))
         return logits
 
     def step(self, dl, optim, loss_fn):
@@ -155,14 +147,14 @@ class HangmanModel(nn.Module):
             if loss < min_loss:
                 min_loss = loss
                 count = 0
-                torch.save(self, "model.pkz")
+                torch.save(self, f"model-{loss:2.4f}.pkz")
             else:
                 count += 1
 
             if count == 3: break
 
-#ds = HangmanData()
-#torch.save(ds, 'dataset.pkl')
+ds = HangmanData()
+torch.save(ds, 'dataset.pkl')
 
 ds = torch.load('dataset.pkl', map_location=DEVICE)
 # Take 10% of dataset for memory reasons
