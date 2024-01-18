@@ -99,25 +99,23 @@ class PositionalEncoding(nn.Module):
 class HangmanModel(nn.Module):
     def __init__(self):
         super().__init__()
-        self.embedder = nn.Embedding(num_embeddings=28, embedding_dim=512, padding_idx=27)
-        self.pos_enc = PositionalEncoding(d_model=512)
+        self.embedder = nn.Embedding(num_embeddings=28, embedding_dim=128, padding_idx=27)
+        self.pos_enc = PositionalEncoding(d_model=128)
 
-        self.encoder_layer = nn.TransformerEncoderLayer(d_model=512, nhead=8, dim_feedforward=512, batch_first=True)
+        self.encoder_layer = nn.TransformerEncoderLayer(d_model=128, nhead=8, dim_feedforward=128, batch_first=True)
         self.encoder = nn.TransformerEncoder(self.encoder_layer, 4)
 
-        self.head = nn.Linear(in_features=512, out_features=26)
+        self.head = nn.Linear(in_features=128, out_features=26)
 
     def forward(self, x):
-        #x[0].to(DEVICE)
-        #x[1].to(DEVICE)
         inputs, masks = x
         embeddings = self.embedder(inputs)
         positional_embeddings = self.pos_enc(embeddings)
-        encodings = self.encoder(src=positional_embeddings, mask=masks)
+        encodings = self.encoder(src=positional_embeddings)#, mask=masks)
         logits = self.head(torch.mean(encodings, dim=1))
         return logits
 
-    def step(self, dl, optim, loss_fn):
+    def epoch(self, dl, optim, loss_fn):
         total_loss = 0
         for batch in tqdm(dl, total=len(dl)):
             inputs, guesses = batch
@@ -135,25 +133,20 @@ class HangmanModel(nn.Module):
     
     def train_loop(self, dl):
         self.train()
-        lr = 0.1
-        optim = torch.optim.SGD(params=self.parameters(), lr=lr)
+        lr = 1e-3
+        optim = torch.optim.Adam(params=self.parameters(), lr=lr)
         loss_fn = nn.CrossEntropyLoss(ignore_index=27)
 
         min_loss = math.inf
-        count = 0
         for e in tqdm(range(100)):
-            loss = self.step(dl, optim, loss_fn)
+            loss = self.epoch(dl, optim, loss_fn)
             if loss < min_loss:
                 min_loss = loss
-                count = 0
-                torch.save(self, f"model-{loss:2.4f}.pkz")
-            else:
-                count += 1
+                loss = self.epoch(dl, optim, loss_fn)
+            torch.save(self, f"model-{loss:2.4f}-{e}.pkz")
 
-            if count == 3: break
-
-ds = HangmanData()
-torch.save(ds, 'dataset.pkl')
+#ds = HangmanData()
+#torch.save(ds, 'dataset.pkl')
 
 ds = torch.load('dataset10.pkl', map_location=DEVICE)
 # Take 10% of dataset for memory reasons
