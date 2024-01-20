@@ -84,9 +84,9 @@ class LSTMModel(nn.Module):
             total_loss += loss.item()
         return total_loss / len(dl)
     
-    def train_loop(self, train_dl, val_dl):
-        lr = 1e-2
-        optim = torch.optim.Adam(params=self.parameters(), lr=lr)
+    def train_loop(self, train_dl, val_dl, optim=None):
+        lr = 1e-3
+        optim = optim or torch.optim.Adam(params=self.parameters(), lr=lr)
         loss_fn = nn.CrossEntropyLoss(ignore_index=27)
 
         min_loss = math.inf
@@ -119,6 +119,14 @@ train_dl = DataLoader(train_ds, batch_size=1024, shuffle=True)
 val_dl = DataLoader(val_ds, batch_size=1024, shuffle=True)
 
 # %%
+#hm = LSTMModel()
+#hm = hm.to(DEVICE)
+#hm.train_loop(train_dl, val_dl)
+
 hm = LSTMModel()
-hm = hm.to(DEVICE)
-hm.train_loop(train_dl, val_dl)
+hm.load_state_dict(torch.load('lowlr-235-1.522131.ckpt', map_location="cpu")['state_dict'])
+
+optim = torch.optim.Adam(hm.parameters())
+optim.load_state_dict(torch.load('lowlr-235-1.522131.ckpt', map_location="cpu")['optimizer'])
+
+hm.train_loop(train_dl, val_dl, optim)
